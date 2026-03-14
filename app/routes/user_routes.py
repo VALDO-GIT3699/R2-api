@@ -16,7 +16,8 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
     new_user = User(
         email=user.email,
-        password=hash_password(user.password)
+        password=hash_password(user.password),
+        is_email_verified=False,
     )
 
     db.add(new_user)

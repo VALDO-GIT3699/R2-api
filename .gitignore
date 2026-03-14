@@ -4,3 +4,19 @@ __pycache__/
 uploads/
 venv/
 .env
+
+# Python virtual environments
+.venv/
+env/
+
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editor/OS
+.idea/
+.vscode/
+.DS_Store

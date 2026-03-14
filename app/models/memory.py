@@ -1,5 +1,8 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from datetime import datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from app.database.database import Base
+
 
 class Memory(Base):
     __tablename__ = "memories"
@@ -8,3 +11,6 @@ class Memory(Base):
     description = Column(String)
     image_path = Column(String)
     user_id = Column(Integer, ForeignKey("users.id"))
+    couple_id = Column(Integer, ForeignKey("couples.id"), nullable=True, index=True)
+    occurred_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
