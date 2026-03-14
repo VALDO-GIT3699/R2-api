@@ -53,13 +53,22 @@ def apply_lightweight_migrations() -> None:
             conn.execute(text("ALTER TABLE users ADD COLUMN couple_id INTEGER"))
 
         # Backfill nickname for legacy users so new API contracts remain consistent.
-        conn.execute(
-            text(
-                "UPDATE users "
-                "SET nickname = lower(substr(email, 1, instr(email, '@') - 1) || '_' || id) "
-                "WHERE nickname IS NULL OR trim(nickname) = ''"
+        if is_sqlite:
+            conn.execute(
+                text(
+                    "UPDATE users "
+                    "SET nickname = lower(substr(email, 1, instr(email, '@') - 1) || '_' || id) "
+                    "WHERE nickname IS NULL OR trim(nickname) = ''"
+                )
             )
-        )
+        else:
+            conn.execute(
+                text(
+                    "UPDATE users "
+                    "SET nickname = lower(split_part(email, '@', 1) || '_' || id) "
+                    "WHERE nickname IS NULL OR btrim(nickname) = ''"
+                )
+            )
 
         conn.execute(
             text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_apple_sub ON users (apple_sub)")
