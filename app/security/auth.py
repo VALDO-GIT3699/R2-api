@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 
 import base64
+import hmac
 import hashlib
-import bcrypt
+import os
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -14,31 +15,59 @@ from app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
+PBKDF2_ITERATIONS = 600000
+
+try:
+    import bcrypt  # type: ignore
+except Exception:
+    bcrypt = None
+
 
 def _normalize_password_input(password: str) -> bytes:
-    """Pre-hash to avoid bcrypt's 72-byte input limit while keeping strong security."""
+    """Normalize password input before hashing to keep behavior consistent."""
     digest = hashlib.sha256(password.encode("utf-8")).digest()
     return base64.b64encode(digest)
 
 
 def hash_password(password: str):
     normalized = _normalize_password_input(password)
-    hashed = bcrypt.hashpw(normalized, bcrypt.gensalt())
-    return hashed.decode("utf-8")
+    salt = os.urandom(16)
+    derived_key = hashlib.pbkdf2_hmac(
+        "sha256",
+        normalized,
+        salt,
+        PBKDF2_ITERATIONS,
+    )
+    encoded_salt = base64.b64encode(salt).decode("ascii")
+    encoded_hash = base64.b64encode(derived_key).decode("ascii")
+    return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${encoded_salt}${encoded_hash}"
 
 
 def verify_password(plain_password, hashed_password):
     try:
-        stored_hash = hashed_password.encode("utf-8")
-
-        # Primary path for new hashes.
         normalized = _normalize_password_input(plain_password)
+        if hashed_password.startswith("pbkdf2_sha256$"):
+            _, iterations, encoded_salt, encoded_hash = hashed_password.split("$", 3)
+            derived_key = hashlib.pbkdf2_hmac(
+                "sha256",
+                normalized,
+                base64.b64decode(encoded_salt.encode("ascii")),
+                int(iterations),
+            )
+            return hmac.compare_digest(
+                base64.b64encode(derived_key).decode("ascii"),
+                encoded_hash,
+            )
+
+        if bcrypt is None:
+            return False
+
+        stored_hash = hashed_password.encode("utf-8")
         if bcrypt.checkpw(normalized, stored_hash):
             return True
 
-        # Backward compatibility with legacy raw-bcrypt hashes.
         return bcrypt.checkpw(plain_password.encode("utf-8"), stored_hash)
-    except ValueError:
+    except (ValueError, TypeError):
         return False
 
 
