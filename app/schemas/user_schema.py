@@ -18,12 +18,15 @@ class UserCreate(BaseModel):
     def validate_real_email(cls, value: EmailStr) -> EmailStr:
         try:
             validated = validate_email(
-                str(value),
+                str(value).strip(),
                 check_deliverability=settings.email_check_deliverability,
             )
             return validated.normalized
         except EmailNotValidError as exc:
             raise ValueError("Correo invalido o no entregable") from exc
+        except Exception as exc:
+            # Fail closed: if deliverability can't be verified, reject registration.
+            raise ValueError("Correo invalido o no verificable") from exc
 
     @field_validator("nickname")
     @classmethod

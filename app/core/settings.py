@@ -27,7 +27,7 @@ class Settings:
     apple_audience: str = os.getenv("APPLE_AUDIENCE", "")
     email_check_deliverability: bool = _to_bool(
         os.getenv("EMAIL_CHECK_DELIVERABILITY"),
-        default=env.lower() == "production",
+        default=True,
     )
 
 
