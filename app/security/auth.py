@@ -1,6 +1,9 @@
-from passlib.context import CryptContext
-from jose import jwt, JWTError
 from datetime import datetime, timedelta
+
+import base64
+import hashlib
+import bcrypt
+from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -11,15 +14,32 @@ from app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _normalize_password_input(password: str) -> bytes:
+    """Pre-hash to avoid bcrypt's 72-byte input limit while keeping strong security."""
+    digest = hashlib.sha256(password.encode("utf-8")).digest()
+    return base64.b64encode(digest)
 
 
 def hash_password(password: str):
-    return pwd_context.hash(password)
+    normalized = _normalize_password_input(password)
+    hashed = bcrypt.hashpw(normalized, bcrypt.gensalt())
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        stored_hash = hashed_password.encode("utf-8")
+
+        # Primary path for new hashes.
+        normalized = _normalize_password_input(plain_password)
+        if bcrypt.checkpw(normalized, stored_hash):
+            return True
+
+        # Backward compatibility with legacy raw-bcrypt hashes.
+        return bcrypt.checkpw(plain_password.encode("utf-8"), stored_hash)
+    except ValueError:
+        return False
 
 
 def create_access_token(data: dict):
