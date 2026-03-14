@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from app.routes import user_routes, auth_routes, pair_routes, appointment_routes, couple_note_routes
 from app.database.database import engine, Base, apply_lightweight_migrations
 from app.routes import memory_routes
-from app.models import user, memory, couple, invitation, appointment, couple_note
+from app.models import user, memory, couple, invitation, appointment, couple_note, memory_like, couple_note_like
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path

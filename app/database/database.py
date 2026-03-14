@@ -23,6 +23,8 @@ from app.models import couple
 from app.models import invitation
 from app.models import appointment
 from app.models import couple_note
+from app.models import memory_like
+from app.models import couple_note_like
 
 
 def apply_lightweight_migrations() -> None:
@@ -38,6 +40,9 @@ def apply_lightweight_migrations() -> None:
         memory_columns = {column["name"] for column in inspector.get_columns("memories")}
 
     with engine.begin() as conn:
+        if "nickname" not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN nickname VARCHAR"))
+
         if "apple_sub" not in columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN apple_sub VARCHAR"))
 
@@ -47,8 +52,21 @@ def apply_lightweight_migrations() -> None:
         if "couple_id" not in columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN couple_id INTEGER"))
 
+        # Backfill nickname for legacy users so new API contracts remain consistent.
+        conn.execute(
+            text(
+                "UPDATE users "
+                "SET nickname = lower(substr(email, 1, instr(email, '@') - 1) || '_' || id) "
+                "WHERE nickname IS NULL OR trim(nickname) = ''"
+            )
+        )
+
         conn.execute(
             text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_apple_sub ON users (apple_sub)")
+        )
+
+        conn.execute(
+            text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_nickname ON users (nickname)")
         )
 
         conn.execute(
@@ -117,4 +135,54 @@ def apply_lightweight_migrations() -> None:
 
         conn.execute(
             text("CREATE INDEX IF NOT EXISTS ix_couple_notes_couple_id ON couple_notes (couple_id)")
+        )
+
+        if not inspector.has_table("memory_likes"):
+            conn.execute(
+                text(
+                    "CREATE TABLE memory_likes ("
+                    "id INTEGER PRIMARY KEY, "
+                    "memory_id INTEGER NOT NULL, "
+                    "user_id INTEGER NOT NULL, "
+                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                    ")"
+                )
+            )
+
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_memory_likes_memory_id ON memory_likes (memory_id)")
+        )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_memory_likes_user_id ON memory_likes (user_id)")
+        )
+        conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_memory_likes_memory_user "
+                "ON memory_likes (memory_id, user_id)"
+            )
+        )
+
+        if not inspector.has_table("couple_note_likes"):
+            conn.execute(
+                text(
+                    "CREATE TABLE couple_note_likes ("
+                    "id INTEGER PRIMARY KEY, "
+                    "note_id INTEGER NOT NULL, "
+                    "user_id INTEGER NOT NULL, "
+                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                    ")"
+                )
+            )
+
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_couple_note_likes_note_id ON couple_note_likes (note_id)")
+        )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_couple_note_likes_user_id ON couple_note_likes (user_id)")
+        )
+        conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_couple_note_likes_note_user "
+                "ON couple_note_likes (note_id, user_id)"
+            )
         )

@@ -7,6 +7,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
+    nickname = Column(String, unique=True, index=True)
     password = Column(String)
     apple_sub = Column(String, unique=True, nullable=True, index=True)
     is_email_verified = Column(Boolean, nullable=False, default=False)

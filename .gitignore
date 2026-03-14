@@ -1,9 +1,12 @@
 r2.db
+r2.db-*
 __pycache__/
 *.pyc
 uploads/
 venv/
 .env
+.env.*
+!.env.example
 
 # Python virtual environments
 .venv/
@@ -15,8 +18,19 @@ env/
 .ruff_cache/
 .coverage
 htmlcov/
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+*.log
+pip-log.txt
 
 # Editor/OS
 .idea/
 .vscode/
 .DS_Store
+Thumbs.db
+
+# Build/runtime artifacts
+dist/
+*.egg-info/

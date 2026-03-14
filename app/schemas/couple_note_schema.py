@@ -11,5 +11,8 @@ class CoupleNoteResponse(BaseModel):
     id: int
     couple_id: int
     author_user_id: int
+    author_nickname: str
     content: str
     created_at: datetime
+    like_count: int = 0
+    liked_by_me: bool = False
