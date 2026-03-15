@@ -12,7 +12,9 @@ from app.core.settings import settings
 from app.database.deps import get_db
 from app.models.memory import Memory
 from app.models.memory_like import MemoryLike
+from app.models.memory_comment import MemoryComment
 from app.models.user import User
+from app.schemas.memory_schema import MemoryCommentCreate
 from app.security.auth import get_current_user
 
 router = APIRouter()
@@ -47,6 +49,33 @@ def _serialize_memory(item: Memory, author_nickname: str, like_count: int, liked
         "like_count": like_count,
         "liked_by_me": liked_by_me,
     }
+
+
+def _serialize_comment(item: MemoryComment, author_nickname: str, current_user_id: int) -> dict[str, Any]:
+    return {
+        "id": int(cast(Any, item.id)),
+        "memory_id": int(cast(Any, item.memory_id)),
+        "user_id": int(cast(Any, item.user_id)),
+        "author_nickname": author_nickname,
+        "content": str(cast(Any, item.content)),
+        "created_at": cast(Any, item.created_at).isoformat(),
+        "can_delete": int(cast(Any, item.user_id)) == current_user_id,
+    }
+
+
+def _get_memory_if_accessible(db: Session, memory_id: int, current_user: User) -> Memory:
+    memory = (
+        db.query(Memory)
+        .filter(Memory.id == memory_id, Memory.deleted_at.is_(None))
+        .first()
+    )
+    if not memory:
+        raise HTTPException(status_code=404, detail="Recuerdo no encontrado")
+
+    if cast(Any, memory.couple_id) != cast(Any, current_user.couple_id):
+        raise HTTPException(status_code=403, detail="No tienes acceso a este recuerdo")
+
+    return memory
 
 @router.post("/memories")
 async def create_memory(
@@ -246,6 +275,106 @@ def toggle_memory_like(
     }
 
 
+@router.get("/memories/{memory_id}/comments")
+def get_memory_comments(
+    memory_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _get_memory_if_accessible(db, memory_id, current_user)
+
+    comments = (
+        db.query(MemoryComment)
+        .filter(
+            MemoryComment.memory_id == memory_id,
+            MemoryComment.deleted_at.is_(None),
+        )
+        .order_by(MemoryComment.created_at.asc(), MemoryComment.id.asc())
+        .all()
+    )
+
+    if not comments:
+        return []
+
+    author_ids = {int(cast(Any, item.user_id)) for item in comments}
+    authors = db.query(User.id, User.nickname).filter(User.id.in_(author_ids)).all()
+    nickname_by_user = {
+        int(cast(Any, user_id)): str(cast(Any, nickname or "usuario"))
+        for user_id, nickname in authors
+    }
+
+    current_user_id = int(cast(Any, current_user.id))
+    return [
+        _serialize_comment(
+            item,
+            nickname_by_user.get(int(cast(Any, item.user_id)), "usuario"),
+            current_user_id,
+        )
+        for item in comments
+    ]
+
+
+@router.post("/memories/{memory_id}/comments")
+def create_memory_comment(
+    memory_id: int,
+    payload: MemoryCommentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _get_memory_if_accessible(db, memory_id, current_user)
+
+    content = payload.content.strip()
+    if len(content) < 1:
+        raise HTTPException(status_code=400, detail="El comentario no puede estar vacio")
+    if len(content) > 300:
+        raise HTTPException(status_code=400, detail="El comentario no puede exceder 300 caracteres")
+
+    comment = MemoryComment(
+        memory_id=memory_id,
+        user_id=int(cast(Any, current_user.id)),
+        content=content,
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+
+    return _serialize_comment(
+        comment,
+        str(cast(Any, current_user.nickname or "usuario")),
+        int(cast(Any, current_user.id)),
+    )
+
+
+@router.delete("/memories/{memory_id}/comments/{comment_id}")
+def delete_memory_comment(
+    memory_id: int,
+    comment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _get_memory_if_accessible(db, memory_id, current_user)
+
+    comment = (
+        db.query(MemoryComment)
+        .filter(
+            MemoryComment.id == comment_id,
+            MemoryComment.memory_id == memory_id,
+            MemoryComment.deleted_at.is_(None),
+        )
+        .first()
+    )
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comentario no encontrado")
+
+    if int(cast(Any, comment.user_id)) != int(cast(Any, current_user.id)):
+        raise HTTPException(status_code=403, detail="Solo el autor puede eliminar este comentario")
+
+    setattr(comment, "deleted_at", datetime.utcnow())
+    db.commit()
+
+    return {"ok": True, "message": "Comentario eliminado"}
+
+
 @router.get("/memories/reminders/monthly")
 def monthly_reminders(
     db: Session = Depends(get_db),
@@ -319,6 +448,14 @@ def delete_memory(
         raise HTTPException(status_code=403, detail="Solo el autor puede eliminar este recuerdo")
 
     setattr(memory, "deleted_at", datetime.utcnow())
+    (
+        db.query(MemoryComment)
+        .filter(
+            MemoryComment.memory_id == memory_id,
+            MemoryComment.deleted_at.is_(None),
+        )
+        .update({"deleted_at": datetime.utcnow()}, synchronize_session=False)
+    )
     db.commit()
 
     return {"ok": True, "message": "Recuerdo eliminado"}

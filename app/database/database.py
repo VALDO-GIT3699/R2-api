@@ -25,6 +25,7 @@ from app.models import appointment
 from app.models import couple_note
 from app.models import memory_like
 from app.models import couple_note_like
+from app.models import memory_comment
 
 
 def apply_lightweight_migrations() -> None:
@@ -230,4 +231,28 @@ def apply_lightweight_migrations() -> None:
                 "CREATE UNIQUE INDEX IF NOT EXISTS ux_couple_note_likes_note_user "
                 "ON couple_note_likes (note_id, user_id)"
             )
+        )
+
+        if not inspector.has_table("memory_comments"):
+            conn.execute(
+                text(
+                    "CREATE TABLE memory_comments ("
+                    "id INTEGER PRIMARY KEY, "
+                    "memory_id INTEGER NOT NULL, "
+                    "user_id INTEGER NOT NULL, "
+                    "content VARCHAR NOT NULL, "
+                    f"created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    f"deleted_at {datetime_type}"
+                    ")"
+                )
+            )
+
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_memory_comments_memory_id ON memory_comments (memory_id)")
+        )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_memory_comments_user_id ON memory_comments (user_id)")
+        )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_memory_comments_deleted_at ON memory_comments (deleted_at)")
         )
