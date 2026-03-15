@@ -39,6 +39,14 @@ def apply_lightweight_migrations() -> None:
     if inspector.has_table("memories"):
         memory_columns = {column["name"] for column in inspector.get_columns("memories")}
 
+    note_columns = set()
+    if inspector.has_table("couple_notes"):
+        note_columns = {column["name"] for column in inspector.get_columns("couple_notes")}
+
+    appointment_columns = set()
+    if inspector.has_table("appointments"):
+        appointment_columns = {column["name"] for column in inspector.get_columns("appointments")}
+
     with engine.begin() as conn:
         if "nickname" not in columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN nickname VARCHAR"))
@@ -51,6 +59,9 @@ def apply_lightweight_migrations() -> None:
 
         if "couple_id" not in columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN couple_id INTEGER"))
+
+        if "deleted_at" not in columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN deleted_at DATETIME"))
 
         # Backfill nickname for legacy users so new API contracts remain consistent.
         if is_sqlite:
@@ -81,6 +92,9 @@ def apply_lightweight_migrations() -> None:
         conn.execute(
             text("CREATE INDEX IF NOT EXISTS ix_users_couple_id ON users (couple_id)")
         )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_users_deleted_at ON users (deleted_at)")
+        )
 
         if inspector.has_table("memories"):
             if "couple_id" not in memory_columns:
@@ -92,8 +106,17 @@ def apply_lightweight_migrations() -> None:
             if "created_at" not in memory_columns:
                 conn.execute(text("ALTER TABLE memories ADD COLUMN created_at DATETIME"))
 
+            if "image_deleted_at" not in memory_columns:
+                conn.execute(text("ALTER TABLE memories ADD COLUMN image_deleted_at DATETIME"))
+
+            if "deleted_at" not in memory_columns:
+                conn.execute(text("ALTER TABLE memories ADD COLUMN deleted_at DATETIME"))
+
             conn.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_memories_couple_id ON memories (couple_id)")
+            )
+            conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_memories_deleted_at ON memories (deleted_at)")
             )
 
             # Fill null timestamps for legacy rows to keep reminder logic safe.
@@ -115,10 +138,13 @@ def apply_lightweight_migrations() -> None:
                     "title VARCHAR NOT NULL, "
                     "notes VARCHAR, "
                     "scheduled_for DATETIME NOT NULL, "
-                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    "deleted_at DATETIME"
                     ")"
                 )
             )
+        elif "deleted_at" not in appointment_columns:
+            conn.execute(text("ALTER TABLE appointments ADD COLUMN deleted_at DATETIME"))
 
         conn.execute(
             text("CREATE INDEX IF NOT EXISTS ix_appointments_couple_id ON appointments (couple_id)")
@@ -127,6 +153,9 @@ def apply_lightweight_migrations() -> None:
             text(
                 "CREATE INDEX IF NOT EXISTS ix_appointments_scheduled_for ON appointments (scheduled_for)"
             )
+        )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_appointments_deleted_at ON appointments (deleted_at)")
         )
 
         if not inspector.has_table("couple_notes"):
@@ -137,13 +166,19 @@ def apply_lightweight_migrations() -> None:
                     "couple_id INTEGER NOT NULL, "
                     "author_user_id INTEGER NOT NULL, "
                     "content VARCHAR NOT NULL, "
-                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    "deleted_at DATETIME"
                     ")"
                 )
             )
+        elif "deleted_at" not in note_columns:
+            conn.execute(text("ALTER TABLE couple_notes ADD COLUMN deleted_at DATETIME"))
 
         conn.execute(
             text("CREATE INDEX IF NOT EXISTS ix_couple_notes_couple_id ON couple_notes (couple_id)")
+        )
+        conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_couple_notes_deleted_at ON couple_notes (deleted_at)")
         )
 
         if not inspector.has_table("memory_likes"):

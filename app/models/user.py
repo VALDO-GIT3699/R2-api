@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from app.database.database import Base
 
 
@@ -12,3 +12,4 @@ class User(Base):
     apple_sub = Column(String, unique=True, nullable=True, index=True)
     is_email_verified = Column(Boolean, nullable=False, default=False)
     couple_id = Column(Integer, ForeignKey("couples.id"), nullable=True, index=True)
+    deleted_at = Column(DateTime, nullable=True, index=True)

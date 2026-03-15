@@ -48,7 +48,11 @@ def _resolve_unique_nickname(db: Session, preferred: str | None, email: str | No
 
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(func.lower(User.email) == data.email.lower()).first()
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == data.email.lower(), User.deleted_at.is_(None))
+        .first()
+    )
 
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
@@ -77,7 +81,7 @@ def login_with_apple(data: AppleLoginRequest, db: Session = Depends(get_db)):
     if not apple_sub:
         raise HTTPException(status_code=400, detail="Apple token sin subject")
 
-    user = db.query(User).filter(User.apple_sub == apple_sub).first()
+    user = db.query(User).filter(User.apple_sub == apple_sub, User.deleted_at.is_(None)).first()
 
     if user:
         current_nickname = getattr(user, "nickname", None)
@@ -96,7 +100,11 @@ def login_with_apple(data: AppleLoginRequest, db: Session = Depends(get_db)):
             detail="Apple no envio email. Reintenta con una cuenta nueva o provee email.",
         )
 
-    user = db.query(User).filter(func.lower(User.email) == email.lower()).first()
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == email.lower(), User.deleted_at.is_(None))
+        .first()
+    )
 
     if user is not None and user.apple_sub is not None and user.apple_sub != apple_sub:
         raise HTTPException(status_code=409, detail="Cuenta Apple no coincide")

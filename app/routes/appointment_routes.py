@@ -77,7 +77,7 @@ def list_appointments(
 
     appointments = (
         db.query(Appointment)
-        .filter(Appointment.couple_id == couple_id)
+        .filter(Appointment.couple_id == couple_id, Appointment.deleted_at.is_(None))
         .order_by(Appointment.scheduled_for.asc())
         .all()
     )
@@ -111,6 +111,7 @@ def upcoming_reminders(
         db.query(Appointment)
         .filter(Appointment.couple_id == couple_id)
         .filter(Appointment.scheduled_for > now)
+        .filter(Appointment.deleted_at.is_(None))
         .all()
     )
 
@@ -145,3 +146,31 @@ def upcoming_reminders(
 
     reminders.sort(key=lambda item: item.scheduled_for)
     return reminders
+
+
+@router.delete("/appointments/{appointment_id}")
+def delete_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    couple_id = _require_partner(current_user)
+
+    appointment = (
+        db.query(Appointment)
+        .filter(Appointment.id == appointment_id, Appointment.deleted_at.is_(None))
+        .first()
+    )
+    if appointment is None:
+        raise HTTPException(status_code=404, detail="Cita no encontrada")
+
+    if int(cast(Any, appointment.couple_id)) != int(cast(Any, couple_id)):
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta cita")
+
+    if int(cast(Any, appointment.creator_user_id)) != int(cast(Any, current_user.id)):
+        raise HTTPException(status_code=403, detail="Solo quien crea la cita puede eliminarla")
+
+    setattr(appointment, "deleted_at", datetime.utcnow())
+    db.commit()
+
+    return {"ok": True, "message": "Cita eliminada"}

@@ -155,7 +155,7 @@ def get_memories(
 
     memories = (
         db.query(Memory)
-        .filter(Memory.couple_id == current_user.couple_id)
+        .filter(Memory.couple_id == current_user.couple_id, Memory.deleted_at.is_(None))
         .order_by(Memory.occurred_at.desc(), Memory.id.desc())
         .all()
     )
@@ -212,7 +212,7 @@ def toggle_memory_like(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    memory = db.query(Memory).filter(Memory.id == memory_id).first()
+    memory = db.query(Memory).filter(Memory.id == memory_id, Memory.deleted_at.is_(None)).first()
     if not memory:
         raise HTTPException(status_code=404, detail="Recuerdo no encontrado")
 
@@ -264,7 +264,7 @@ def monthly_reminders(
 
     couple_memories = (
         db.query(Memory)
-        .filter(Memory.couple_id == current_user.couple_id)
+        .filter(Memory.couple_id == current_user.couple_id, Memory.deleted_at.is_(None))
         .all()
     )
 
@@ -296,3 +296,56 @@ def monthly_reminders(
         )
 
     return due_items
+
+
+@router.delete("/memories/{memory_id}")
+def delete_memory(
+    memory_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    memory = (
+        db.query(Memory)
+        .filter(Memory.id == memory_id, Memory.deleted_at.is_(None))
+        .first()
+    )
+    if not memory:
+        raise HTTPException(status_code=404, detail="Recuerdo no encontrado")
+
+    if cast(Any, memory.couple_id) != cast(Any, current_user.couple_id):
+        raise HTTPException(status_code=403, detail="No tienes acceso a este recuerdo")
+
+    if int(cast(Any, memory.user_id)) != int(cast(Any, current_user.id)):
+        raise HTTPException(status_code=403, detail="Solo el autor puede eliminar este recuerdo")
+
+    setattr(memory, "deleted_at", datetime.utcnow())
+    db.commit()
+
+    return {"ok": True, "message": "Recuerdo eliminado"}
+
+
+@router.delete("/memories/{memory_id}/image")
+def delete_memory_image(
+    memory_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    memory = (
+        db.query(Memory)
+        .filter(Memory.id == memory_id, Memory.deleted_at.is_(None))
+        .first()
+    )
+    if not memory:
+        raise HTTPException(status_code=404, detail="Recuerdo no encontrado")
+
+    if cast(Any, memory.couple_id) != cast(Any, current_user.couple_id):
+        raise HTTPException(status_code=403, detail="No tienes acceso a este recuerdo")
+
+    if int(cast(Any, memory.user_id)) != int(cast(Any, current_user.id)):
+        raise HTTPException(status_code=403, detail="Solo el autor puede eliminar la imagen")
+
+    setattr(memory, "image_path", "")
+    setattr(memory, "image_deleted_at", datetime.utcnow())
+    db.commit()
+
+    return {"ok": True, "message": "Imagen eliminada"}

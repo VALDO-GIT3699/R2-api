@@ -15,3 +15,4 @@ class Appointment(Base):
     notes = Column(String, nullable=True)
     scheduled_for = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    deleted_at = Column(DateTime, nullable=True, index=True)

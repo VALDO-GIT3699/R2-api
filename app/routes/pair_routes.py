@@ -79,7 +79,11 @@ def accept_invitation(
     if bool(cast(Any, invitation.accepted)):
         raise HTTPException(status_code=400, detail="La invitacion ya fue aceptada")
 
-    inviter = db.query(User).filter(User.id == invitation.inviter_user_id).first()
+    inviter = (
+        db.query(User)
+        .filter(User.id == invitation.inviter_user_id, User.deleted_at.is_(None))
+        .first()
+    )
     if not inviter:
         raise HTTPException(status_code=404, detail="Invitador no encontrado")
 

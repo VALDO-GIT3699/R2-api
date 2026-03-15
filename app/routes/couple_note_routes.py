@@ -81,7 +81,7 @@ def get_couple_notes(
 
     notes = (
         db.query(CoupleNote)
-        .filter(CoupleNote.couple_id == couple_id)
+        .filter(CoupleNote.couple_id == couple_id, CoupleNote.deleted_at.is_(None))
         .order_by(CoupleNote.created_at.desc())
         .all()
     )
@@ -133,7 +133,7 @@ def toggle_couple_note_like(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    note = db.query(CoupleNote).filter(CoupleNote.id == note_id).first()
+    note = db.query(CoupleNote).filter(CoupleNote.id == note_id, CoupleNote.deleted_at.is_(None)).first()
     if note is None:
         raise HTTPException(status_code=404, detail="Dedicatoria no encontrada")
 
@@ -167,3 +167,30 @@ def toggle_couple_note_like(
         "liked_by_me": liked,
         "like_count": int(cast(Any, like_count or 0)),
     }
+
+
+@router.delete("/pair/notes/{note_id}")
+def delete_couple_note(
+    note_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    note = (
+        db.query(CoupleNote)
+        .filter(CoupleNote.id == note_id, CoupleNote.deleted_at.is_(None))
+        .first()
+    )
+    if note is None:
+        raise HTTPException(status_code=404, detail="Dedicatoria no encontrada")
+
+    user_couple_id = cast(int | None, cast(Any, current_user.couple_id))
+    if user_couple_id is None or int(cast(Any, note.couple_id)) != user_couple_id:
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta dedicatoria")
+
+    if int(cast(Any, note.author_user_id)) != int(cast(Any, current_user.id)):
+        raise HTTPException(status_code=403, detail="Solo el autor puede eliminar esta dedicatoria")
+
+    setattr(note, "deleted_at", datetime.utcnow())
+    db.commit()
+
+    return {"ok": True, "message": "Dedicatoria eliminada"}

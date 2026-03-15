@@ -113,7 +113,7 @@ def get_current_user(
             detail="Token invalido",
         )
 
-    user = db.query(User).filter(User.email == subject).first()
+    user = db.query(User).filter(User.email == subject, User.deleted_at.is_(None)).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
