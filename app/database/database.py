@@ -29,6 +29,7 @@ from app.models import couple_note_like
 
 def apply_lightweight_migrations() -> None:
     inspector = inspect(engine)
+    datetime_type = "DATETIME" if is_sqlite else "TIMESTAMP"
 
     if not inspector.has_table("users"):
         return
@@ -61,7 +62,7 @@ def apply_lightweight_migrations() -> None:
             conn.execute(text("ALTER TABLE users ADD COLUMN couple_id INTEGER"))
 
         if "deleted_at" not in columns:
-            conn.execute(text("ALTER TABLE users ADD COLUMN deleted_at DATETIME"))
+            conn.execute(text(f"ALTER TABLE users ADD COLUMN deleted_at {datetime_type}"))
 
         # Backfill nickname for legacy users so new API contracts remain consistent.
         if is_sqlite:
@@ -101,16 +102,16 @@ def apply_lightweight_migrations() -> None:
                 conn.execute(text("ALTER TABLE memories ADD COLUMN couple_id INTEGER"))
 
             if "occurred_at" not in memory_columns:
-                conn.execute(text("ALTER TABLE memories ADD COLUMN occurred_at DATETIME"))
+                conn.execute(text(f"ALTER TABLE memories ADD COLUMN occurred_at {datetime_type}"))
 
             if "created_at" not in memory_columns:
-                conn.execute(text("ALTER TABLE memories ADD COLUMN created_at DATETIME"))
+                conn.execute(text(f"ALTER TABLE memories ADD COLUMN created_at {datetime_type}"))
 
             if "image_deleted_at" not in memory_columns:
-                conn.execute(text("ALTER TABLE memories ADD COLUMN image_deleted_at DATETIME"))
+                conn.execute(text(f"ALTER TABLE memories ADD COLUMN image_deleted_at {datetime_type}"))
 
             if "deleted_at" not in memory_columns:
-                conn.execute(text("ALTER TABLE memories ADD COLUMN deleted_at DATETIME"))
+                conn.execute(text(f"ALTER TABLE memories ADD COLUMN deleted_at {datetime_type}"))
 
             conn.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_memories_couple_id ON memories (couple_id)")
@@ -137,14 +138,14 @@ def apply_lightweight_migrations() -> None:
                     "creator_user_id INTEGER NOT NULL, "
                     "title VARCHAR NOT NULL, "
                     "notes VARCHAR, "
-                    "scheduled_for DATETIME NOT NULL, "
-                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
-                    "deleted_at DATETIME"
+                    f"scheduled_for {datetime_type} NOT NULL, "
+                    f"created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    f"deleted_at {datetime_type}"
                     ")"
                 )
             )
         elif "deleted_at" not in appointment_columns:
-            conn.execute(text("ALTER TABLE appointments ADD COLUMN deleted_at DATETIME"))
+            conn.execute(text(f"ALTER TABLE appointments ADD COLUMN deleted_at {datetime_type}"))
 
         conn.execute(
             text("CREATE INDEX IF NOT EXISTS ix_appointments_couple_id ON appointments (couple_id)")
@@ -166,13 +167,13 @@ def apply_lightweight_migrations() -> None:
                     "couple_id INTEGER NOT NULL, "
                     "author_user_id INTEGER NOT NULL, "
                     "content VARCHAR NOT NULL, "
-                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
-                    "deleted_at DATETIME"
+                    f"created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    f"deleted_at {datetime_type}"
                     ")"
                 )
             )
         elif "deleted_at" not in note_columns:
-            conn.execute(text("ALTER TABLE couple_notes ADD COLUMN deleted_at DATETIME"))
+            conn.execute(text(f"ALTER TABLE couple_notes ADD COLUMN deleted_at {datetime_type}"))
 
         conn.execute(
             text("CREATE INDEX IF NOT EXISTS ix_couple_notes_couple_id ON couple_notes (couple_id)")
@@ -188,7 +189,7 @@ def apply_lightweight_migrations() -> None:
                     "id INTEGER PRIMARY KEY, "
                     "memory_id INTEGER NOT NULL, "
                     "user_id INTEGER NOT NULL, "
-                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                    f"created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP"
                     ")"
                 )
             )
@@ -213,7 +214,7 @@ def apply_lightweight_migrations() -> None:
                     "id INTEGER PRIMARY KEY, "
                     "note_id INTEGER NOT NULL, "
                     "user_id INTEGER NOT NULL, "
-                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                    f"created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP"
                     ")"
                 )
             )
