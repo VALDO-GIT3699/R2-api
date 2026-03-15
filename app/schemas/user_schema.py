@@ -39,6 +39,20 @@ class UserCreate(BaseModel):
         return normalized
 
 
+class UserNicknameUpdate(BaseModel):
+    nickname: str = Field(min_length=3, max_length=24)
+
+    @field_validator("nickname")
+    @classmethod
+    def normalize_nickname(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not NICKNAME_REGEX.fullmatch(normalized):
+            raise ValueError(
+                "Nickname invalido. Usa 3-24 caracteres: minusculas, numeros o guion bajo"
+            )
+        return normalized
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -4,7 +4,7 @@ from sqlalchemy import func
 from datetime import datetime
 from typing import Any, cast
 
-from app.schemas.user_schema import UserCreate, UserResponse
+from app.schemas.user_schema import UserCreate, UserNicknameUpdate, UserResponse
 from app.models.user import User
 from app.models.memory import Memory
 from app.models.couple_note import CoupleNote
@@ -85,3 +85,31 @@ def delete_my_account(
 
     db.commit()
     return {"ok": True, "message": "Cuenta eliminada"}
+
+
+@router.patch("/users/me/nickname", response_model=UserResponse)
+def update_my_nickname(
+    payload: UserNicknameUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_id = int(cast(Any, current_user.id))
+    desired_nickname = payload.nickname
+
+    existing_nickname = (
+        db.query(User)
+        .filter(
+            User.nickname == desired_nickname,
+            User.deleted_at.is_(None),
+            User.id != user_id,
+        )
+        .first()
+    )
+    if existing_nickname:
+        raise HTTPException(status_code=400, detail="Nickname already in use")
+
+    setattr(current_user, "nickname", desired_nickname)
+    db.commit()
+    db.refresh(current_user)
+
+    return current_user
